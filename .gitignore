@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.swp
+*.swo
+*.swn
+*.log
+
+# Virtualenv
+venv/
+env/
+*.env
+*.venv
+
+# Django
+*.sqlite3
+/db.sqlite3
+/media/
+staticfiles/
+*.pot
+
+# Migrations
+**/migrations/*.pyc
+**/migrations/*.pyo
+**/migrations/__pycache__/
+**/migrations/*.log
+
+# VS Code
+.vscode/
+
+# MacOS
+.DS_Store
+
+# JetBrains
+.idea/
+
+# Docker
+*.pid
+*.sock
+
+# Node.js (falls Frontend mit React/Vue)
+node_modules/
+npm-debug.log
+yarn-error.log
