@@ -1,6 +1,8 @@
 from rest_framework import serializers
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
+from rest_framework.authtoken.models import Token
+
 
 User = get_user_model()
 
@@ -28,9 +30,35 @@ class UserRegistrationSerializer(serializers.Serializer):
         user.type = validated_data['type']  
         user.save()
 
-        from rest_framework.authtoken.models import Token
         token, created = Token.objects.get_or_create(user=user)
         validated_data['token'] = token.key
         validated_data['user_id'] = user.id
 
         return validated_data
+    
+    def get_user_data(self, user):
+        token, created = Token.objects.get_or_create(user=user)
+        return {
+            'token': token.key,
+            'username': user.username,
+            'email': user.email,
+            'user_id': user.id,
+        }
+    
+class UserLoginSerializer(serializers.Serializer): 
+    username = serializers.CharField()
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        username = data.get('username')
+        password = data.get('password')
+
+        if username and password:
+            user = authenticate(request=self.context.get('request'), username=username, password=password)
+            if not user:
+                raise serializers.ValidationError('Unable to log in with provided credentials.')
+        else:
+            raise serializers.ValidationError('Must include "username" and "password".')
+
+        data['user'] = user
+        return data
