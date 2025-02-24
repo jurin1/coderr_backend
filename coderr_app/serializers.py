@@ -3,10 +3,26 @@ from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.authtoken.models import Token
 from rest_framework import serializers
-from .models import Profile, CustomUser, FileUpload
+from .models import Profile, FileUpload
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
+
+class BaseProfileSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+    type = serializers.CharField(source='user.type', read_only=True)
+    class Meta:
+        model = Profile
+        fields = ['user', 'username', 'first_name', 'last_name', 'file', 'type']
+        read_only_fields = ('user',) 
+
+class CustomerProfileSerializer(BaseProfileSerializer):
+    class Meta(BaseProfileSerializer.Meta):  
+        
+        fields = BaseProfileSerializer.Meta.fields 
+class BusinessProfileSerializer(BaseProfileSerializer):
+    class Meta(BaseProfileSerializer.Meta): 
+        fields = BaseProfileSerializer.Meta.fields + ['location', 'tel', 'description', 'working_hours']
 
 class ProfileSerializer(serializers.ModelSerializer):
     username = serializers.CharField(source='user.username', required=False)

@@ -1,8 +1,8 @@
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import UserRegistrationSerializer, UserLoginSerializer, ProfileSerializer, FileUploadSerializer
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from .serializers import UserRegistrationSerializer, UserLoginSerializer, ProfileSerializer, FileUploadSerializer, BusinessProfileSerializer, CustomerProfileSerializer
+from rest_framework.permissions import AllowAny
 from rest_framework import generics, permissions, status, parsers
 from django.shortcuts import get_object_or_404
 from .models import Profile, FileUpload
@@ -55,3 +55,27 @@ class FileUploadView(generics.CreateAPIView):
     queryset = FileUpload.objects.all()
     serializer_class = FileUploadSerializer
     parser_classes = [parsers.MultiPartParser, parsers.FormParser]
+
+class BaseProfileListView(generics.ListAPIView): 
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = None 
+
+    def get_queryset(self):
+        if self.user_type is None:
+            raise NotImplementedError("user_type must be set in subclasses.")
+        return Profile.objects.filter(user__type=self.user_type)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        if not queryset.exists():
+            return Response([], status=status.HTTP_200_OK)
+        return Response(serializer.data)
+
+class BusinessProfileListView(BaseProfileListView):
+    serializer_class = BusinessProfileSerializer 
+    user_type = 'business'
+
+class CustomerProfileListView(BaseProfileListView):
+    serializer_class = CustomerProfileSerializer 
+    user_type = 'customer'
