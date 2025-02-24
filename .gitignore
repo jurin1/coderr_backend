@@ -1,3 +1,6 @@
+# Config
+git.bat
+
 # Python
 __pycache__/
 *.py[cod]
@@ -39,7 +42,4 @@ staticfiles/
 *.pid
 *.sock
 
-# Node.js (falls Frontend mit React/Vue)
-node_modules/
-npm-debug.log
-yarn-error.log
+

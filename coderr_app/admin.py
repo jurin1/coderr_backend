@@ -1,13 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from rest_framework.authtoken.models import Token
-from .models import CustomUser 
-
-# @admin.register(Token)
-# class TokenAdmin(admin.ModelAdmin):
-#     list_display = ('key', 'user', 'created')
-
-
+from .models import CustomUser, Profile, FileUpload 
+from django.utils.html import format_html
 
 
 
