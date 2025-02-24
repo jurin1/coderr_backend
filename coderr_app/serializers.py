@@ -9,15 +9,30 @@ from django.contrib.auth import get_user_model
 User = get_user_model()
 
 class ProfileSerializer(serializers.ModelSerializer):
-    username = serializers.ReadOnlyField(source='user.username')
-    email = serializers.ReadOnlyField(source='user.email')
-    type = serializers.ReadOnlyField(source='user.type')
+    username = serializers.CharField(source='user.username', required=False)
+    email = serializers.EmailField(source='user.email', required=False)
+    type = serializers.CharField(source='user.type', required=False) 
 
     class Meta:
         model = Profile
         fields = ['user', 'username', 'first_name', 'last_name', 'file', 'location', 'tel',
                   'description', 'working_hours', 'type', 'email', 'created_at']
         read_only_fields = ('user', 'created_at')
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})  
+        
+        instance = super().update(instance, validated_data)
+
+        
+        if user_data:
+            user = instance.user
+            for attr, value in user_data.items():
+                if hasattr(user, attr):
+                    setattr(user, attr, value)
+            user.save()
+
+        return instance
 
 class UserRegistrationSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
