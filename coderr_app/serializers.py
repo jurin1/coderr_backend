@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.authtoken.models import Token
@@ -122,6 +123,11 @@ class OfferDetailSerializer(serializers.ModelSerializer):
         model = OfferDetail
         fields = '__all__'
 
+    def validate_delivery_time_in_days(self, value): 
+        if not isinstance(value, int) or value <= 0:
+            raise serializers.ValidationError("Delivery time (in days) must be a positive integer.")
+        return value
+
 class OfferSerializer(serializers.ModelSerializer):
     details = OfferDetailSerializer(many=True)
     user_details = serializers.SerializerMethodField()
@@ -146,6 +152,12 @@ class OfferSerializer(serializers.ModelSerializer):
         details_data = validated_data.pop('details')
         offer = Offer.objects.create(user=self.context['request'].user, **validated_data)
         for detail_data in details_data:
+            
+            if 'delivery_time_in_days' not in detail_data or detail_data['delivery_time_in_days'] is None:
+                raise serializers.ValidationError("Delivery time (in days) is required for each offer detail.")
+            if not isinstance(detail_data['delivery_time_in_days'], int) or detail_data['delivery_time_in_days'] <= 0:
+                 raise serializers.ValidationError("Delivery time (in days) must be a positive integer.")
+
             OfferDetail.objects.create(offer=offer, **detail_data)
         return offer
 
@@ -163,6 +175,44 @@ class OfferSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Duplicate offer types are not allowed.")
 
         return data
+    
+    def update(self, instance, validated_data):
+        details_data = validated_data.pop('details', None)  
+
+        instance.title = validated_data.get('title', instance.title)
+        instance.image = validated_data.get('image', instance.image)
+        instance.description = validated_data.get('description', instance.description)
+        instance.save()
+
+        if details_data is not None:
+            self.update_details(instance, details_data)
+
+        return instance
+
+    def update_details(self, offer, details_data):
+        existing_details = {detail.id: detail for detail in offer.details.all()}
+        updated_detail_ids = []
+
+        with transaction.atomic():
+            for detail_data in details_data:
+                detail_id = detail_data.get('id')
+
+                if detail_id:
+                    detail = existing_details.get(detail_id)
+                    if detail:
+                        serializer = OfferDetailSerializer(detail, data=detail_data, partial=True)
+                        serializer.is_valid(raise_exception=True)
+                        serializer.save()
+                        updated_detail_ids.append(detail_id)
+
+                else:
+                    serializer = OfferDetailSerializer(data=detail_data)
+                    serializer.is_valid(raise_exception=True)
+                    serializer.save(offer=offer)
+
+            for detail_id, detail in existing_details.items():
+                if detail_id not in updated_detail_ids:
+                    detail.delete()
     
 class OrderSerializer(serializers.ModelSerializer):
     customer_user = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -213,7 +263,7 @@ class OrderSerializer(serializers.ModelSerializer):
             offer_detail=offer_detail,
             title=offer_detail.title,
             revisions=offer_detail.revisions,
-            delivery_time_in_days=offer_detail.delivery_time,
+            delivery_time_in_days=offer_detail.delivery_time_in_days,
             price=offer_detail.price,
             features=offer_detail.features,
             offer_type=offer_detail.offer_type,
