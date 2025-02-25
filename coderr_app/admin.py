@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from rest_framework.authtoken.models import Token
-from .models import CustomUser, Profile, FileUpload 
+from .models import CustomUser, Profile, Offer, OfferDetail 
 from django.utils.html import format_html
 
 @admin.register(Profile)
@@ -29,3 +28,15 @@ class CustomUserAdmin(UserAdmin):
     )
 
 admin.site.register(CustomUser, CustomUserAdmin)
+
+class OfferDetailInline(admin.TabularInline):  
+    model = OfferDetail
+    extra = 1  
+@admin.register(Offer)
+class OfferAdmin(admin.ModelAdmin):
+    inlines = [OfferDetailInline]
+    list_display = ('title', 'user', 'min_price', 'min_delivery_time', 'created_at', 'updated_at') 
+    list_filter = ('created_at', 'updated_at')      
+    search_fields = ('title', 'description', 'user__username') 
+    readonly_fields = ('min_price', 'min_delivery_time', 'created_at', 'updated_at') 
+    raw_id_fields = ('user',)

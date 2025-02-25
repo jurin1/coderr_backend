@@ -1,11 +1,21 @@
-from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import UserRegistrationSerializer, UserLoginSerializer, ProfileSerializer, FileUploadSerializer, BusinessProfileSerializer, CustomerProfileSerializer
-from rest_framework.permissions import AllowAny
-from rest_framework import generics, permissions, status, parsers
+from rest_framework.permissions import AllowAny, BasePermission
+from rest_framework import generics, permissions, status, parsers, filters, pagination
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from .models import Profile, FileUpload
+from django.db import transaction
+from .models import Profile, FileUpload, Offer, OfferDetail
+from .serializers import (
+    UserRegistrationSerializer,
+    UserLoginSerializer,
+    ProfileSerializer,
+    FileUploadSerializer,
+    BusinessProfileSerializer,
+    CustomerProfileSerializer,
+    OfferDetailSerializer,
+    OfferSerializer,
+)
 
 class UserRegistrationView(APIView):
     permission_classes = [AllowAny]
@@ -79,3 +89,102 @@ class BusinessProfileListView(BaseProfileListView):
 class CustomerProfileListView(BaseProfileListView):
     serializer_class = CustomerProfileSerializer 
     user_type = 'customer'
+
+class OfferPagination(pagination.PageNumberPagination):
+    page_size = 10  
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
+
+class OfferListView(generics.ListCreateAPIView):
+    queryset = Offer.objects.all()
+    serializer_class = OfferSerializer
+    pagination_class = OfferPagination
+    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+    ordering_fields = ['updated_at', 'min_price']
+    search_fields = ['title', 'description']
+
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+
+class IsOwnerOrReadOnly(BasePermission):
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        
+        return obj.user == request.user
+class OfferDetailView(generics.RetrieveAPIView):
+    queryset = OfferDetail.objects.all()
+    serializer_class = OfferDetailSerializer
+    permission_classes = [AllowAny]  
+
+class OfferDetailDeleteView(generics.RetrieveDestroyAPIView):
+    queryset = OfferDetail.objects.all()
+    serializer_class = OfferDetailSerializer
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+
+class OfferUpdateView(generics.RetrieveUpdateDestroyAPIView): 
+    queryset = Offer.objects.all()
+    serializer_class = OfferSerializer
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+
+    def patch(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+
+        
+        details_data = request.data.get('details')
+        if details_data is not None:  
+            self.update_details(instance, details_data)
+
+        self.perform_update(serializer)
+        return Response(serializer.data)
+
+    def update_details(self, offer, details_data):
+        existing_details = {detail.id: detail for detail in offer.details.all()}
+        updated_detail_ids = []
+
+        with transaction.atomic():  
+            for detail_data in details_data:
+                detail_id = detail_data.get('id')
+
+                if detail_id:  
+                    detail = existing_details.get(detail_id)
+                    if detail:
+                        serializer = OfferDetailSerializer(detail, data=detail_data, partial=True)
+                        serializer.is_valid(raise_exception=True)
+                        serializer.save()
+                        updated_detail_ids.append(detail_id)
+                    
+
+                else:  
+                    serializer = OfferDetailSerializer(data=detail_data)
+                    serializer.is_valid(raise_exception=True)
+                    serializer.save(offer=offer)  
+
+            
+            for detail_id, detail in existing_details.items():
+                if detail_id not in updated_detail_ids:
+                    detail.delete()
+
+    def perform_update(self, serializer):
+        serializer.save()
+
+    def delete(self, request, *args, **kwargs):
+        return self.destroy(request, *args, **kwargs)

@@ -3,7 +3,7 @@ from django.contrib.auth import get_user_model, authenticate
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.authtoken.models import Token
 from rest_framework import serializers
-from .models import Profile, FileUpload
+from .models import Profile, FileUpload, Offer, OfferDetail
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -112,3 +112,53 @@ class FileUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = FileUpload
         fields = ['file', 'uploaded_at']
+
+class OfferDetailSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)  
+    url = serializers.HyperlinkedIdentityField(view_name='offerdetail-detail', read_only=True)
+    offer = serializers.PrimaryKeyRelatedField(read_only=True)
+    class Meta:
+        model = OfferDetail
+        fields = '__all__'
+
+class OfferSerializer(serializers.ModelSerializer):
+    details = OfferDetailSerializer(many=True)
+    user_details = serializers.SerializerMethodField()
+    user = serializers.PrimaryKeyRelatedField(read_only=True, default=serializers.CurrentUserDefault())
+    min_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    min_delivery_time = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = Offer
+        fields = ['id', 'user', 'title', 'image', 'description', 'created_at', 'updated_at', 'details', 'min_price', 'min_delivery_time', 'user_details']
+        read_only_fields = ('created_at', 'updated_at', 'user')
+
+    def get_user_details(self, obj):
+        profile = Profile.objects.get(user=obj.user)
+        return {
+            "first_name": profile.first_name,
+            "last_name": profile.last_name,
+            "username": profile.user.username,
+        }
+
+    def create(self, validated_data):
+        details_data = validated_data.pop('details')
+        offer = Offer.objects.create(user=self.context['request'].user, **validated_data)
+        for detail_data in details_data:
+            OfferDetail.objects.create(offer=offer, **detail_data)
+        return offer
+
+    def validate(self, data):
+        request = self.context.get('request')
+        if request and request.user.type != 'business':
+            raise serializers.ValidationError("Only business users can create offers.")
+
+        details_data = data.get('details')
+        if not details_data:
+            raise serializers.ValidationError("At least one offer detail is required.")
+       
+        offer_types = [detail.get('offer_type') for detail in details_data if detail.get('offer_type')]
+        if len(offer_types) != len(set(offer_types)):
+            raise serializers.ValidationError("Duplicate offer types are not allowed.")
+
+        return data
