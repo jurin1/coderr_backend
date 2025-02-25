@@ -1,7 +1,7 @@
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, BasePermission
-from rest_framework import generics, permissions, status, parsers, filters, pagination
+from rest_framework import generics, permissions, status, parsers, filters, pagination, parsers
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q, Avg
@@ -107,6 +107,7 @@ class OfferListView(generics.ListCreateAPIView):
     filter_backends = [filters.OrderingFilter, filters.SearchFilter]
     ordering_fields = ['updated_at', 'min_price']
     search_fields = ['title', 'description']
+    #parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
     def get_permissions(self):
         if self.request.method == 'POST':
@@ -147,6 +148,7 @@ class OfferUpdateView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Offer.objects.all()
     serializer_class = OfferSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    #parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
     def patch(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -254,9 +256,6 @@ class CompletedOrderCountView(generics.RetrieveAPIView):
         return Response(serializer.data)
     
 class IsReviewerOrReadOnly(permissions.BasePermission):
-    """
-    Benutzerdefinierte Berechtigung, die nur dem Ersteller einer Bewertung erlaubt, sie zu bearbeiten oder zu löschen.
-    """
     def has_object_permission(self, request, view, obj):
         if request.method in permissions.SAFE_METHODS:
             return True
