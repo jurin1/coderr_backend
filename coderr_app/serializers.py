@@ -1,9 +1,10 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
+from django.shortcuts import get_object_or_404
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.authtoken.models import Token
 from rest_framework import serializers
-from .models import Profile, FileUpload, Offer, OfferDetail
+from .models import Profile, FileUpload, Offer, OfferDetail, Order
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -162,3 +163,76 @@ class OfferSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Duplicate offer types are not allowed.")
 
         return data
+    
+class OrderSerializer(serializers.ModelSerializer):
+    customer_user = serializers.PrimaryKeyRelatedField(read_only=True)
+    business_user = serializers.PrimaryKeyRelatedField(read_only=True)
+    offer_detail_id = serializers.IntegerField(write_only=True)  
+
+    class Meta:
+        model = Order
+        fields = [
+            'id',
+            'customer_user',
+            'business_user',
+            'offer_detail_id', 
+            'title',
+            'revisions',
+            'delivery_time_in_days',
+            'price',
+            'features',
+            'offer_type',
+            'status',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = (
+            'customer_user',
+            'business_user',
+            'created_at',
+            'updated_at',
+            'title',  
+            'revisions',  
+            'delivery_time_in_days',  
+            'price',  
+            'features',  
+            'offer_type'
+        )
+
+    def create(self, validated_data):
+        offer_detail_id = validated_data.pop('offer_detail_id')
+        offer_detail = get_object_or_404(OfferDetail, id=offer_detail_id)
+        offer = offer_detail.offer
+
+        if self.context['request'].user.type != 'customer':
+            raise serializers.ValidationError("Only customers can create orders.")
+
+        order = Order.objects.create(
+            customer_user=self.context['request'].user,
+            business_user=offer.user,
+            offer_detail=offer_detail,
+            title=offer_detail.title,
+            revisions=offer_detail.revisions,
+            delivery_time_in_days=offer_detail.delivery_time,
+            price=offer_detail.price,
+            features=offer_detail.features,
+            offer_type=offer_detail.offer_type,
+            status='in_progress',  
+        )
+        return order
+
+    def update(self, instance, validated_data):
+        if self.context['request'].user.type == 'business':
+            if 'status' in validated_data:
+                instance.status = validated_data['status']
+                instance.save()
+                return instance
+        else:
+            raise serializers.ValidationError("Only business users can update the order status")
+
+
+class OrderCountSerializer(serializers.Serializer):
+    order_count = serializers.IntegerField()
+
+class CompletedOrderCountSerializer(serializers.Serializer):
+    completed_order_count = serializers.IntegerField()

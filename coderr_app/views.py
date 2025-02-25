@@ -4,8 +4,9 @@ from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework import generics, permissions, status, parsers, filters, pagination
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
+from django.db.models import Count, Q
 from django.db import transaction
-from .models import Profile, FileUpload, Offer, OfferDetail
+from .models import Profile, FileUpload, Offer, OfferDetail, CustomUser, Order
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
@@ -15,6 +16,9 @@ from .serializers import (
     CustomerProfileSerializer,
     OfferDetailSerializer,
     OfferSerializer,
+    OrderSerializer,
+    OrderCountSerializer,
+    CompletedOrderCountSerializer,
 )
 
 class UserRegistrationView(APIView):
@@ -188,3 +192,62 @@ class OfferUpdateView(generics.RetrieveUpdateDestroyAPIView):
 
     def delete(self, request, *args, **kwargs):
         return self.destroy(request, *args, **kwargs)
+    
+class OrderListCreateView(generics.ListCreateAPIView):
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Order.objects.filter(Q(customer_user=user) | Q(business_user=user))
+
+    def create(self, request, *args, **kwargs):
+        return super().create(request, *args, **kwargs)
+
+class OrderUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        order = super().get_object()
+        if self.request.method == 'PATCH':
+          if self.request.user.type != "business":
+            raise PermissionError("Only business users can update the order status.")
+        if self.request.method == 'DELETE':
+            if not self.request.user.is_staff:
+                raise PermissionError("Only admin users can delete orders.")
+        return order
+
+    def update(self, request, *args, **kwargs):
+        return super().update(request, *args, **kwargs)
+
+    def perform_destroy(self, instance):
+        if not self.request.user.is_staff:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        instance.delete()
+
+
+class OrderCountView(generics.RetrieveAPIView):
+    serializer_class = OrderCountSerializer
+    permission_classes = [AllowAny] 
+    def get(self, request, *args, **kwargs):
+        business_user_id = self.kwargs['business_user_id']
+        get_object_or_404(CustomUser, id=business_user_id, type='business')  
+
+        order_count = Order.objects.filter(business_user_id=business_user_id, status='in_progress').count()
+        serializer = self.get_serializer({'order_count': order_count})
+        return Response(serializer.data)
+
+
+class CompletedOrderCountView(generics.RetrieveAPIView):
+    serializer_class = CompletedOrderCountSerializer
+    permission_classes = [AllowAny] 
+
+    def get(self, request, *args, **kwargs):
+        business_user_id = self.kwargs['business_user_id']
+        get_object_or_404(CustomUser, id=business_user_id, type='business') 
+
+        completed_order_count = Order.objects.filter(business_user_id=business_user_id, status='completed').count()
+        serializer = self.get_serializer({'completed_order_count': completed_order_count})
+        return Response(serializer.data)
