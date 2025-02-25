@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework import generics, permissions, status, parsers, filters, pagination
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Avg
 from django.db import transaction
 from .models import Profile, FileUpload, Offer, OfferDetail, CustomUser, Order, Review
 from .serializers import (
@@ -292,3 +292,26 @@ class ReviewUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     
     def perform_destroy(self, instance):
         instance.delete()
+
+class BaseInfoView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        review_count = Review.objects.count()
+        average_rating = Review.objects.aggregate(Avg('rating'))['rating__avg']
+        business_profile_count = CustomUser.objects.filter(type='business').count()
+        offer_count = Offer.objects.count()
+
+        if average_rating is not None:
+            average_rating = round(average_rating, 1)
+        else:
+            average_rating = 0  
+
+        data = {
+            'review_count': review_count,
+            'average_rating': average_rating,
+            'business_profile_count': business_profile_count,
+            'offer_count': offer_count,
+        }
+
+        return Response(data, status=status.HTTP_200_OK)

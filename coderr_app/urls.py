@@ -14,7 +14,8 @@ from .views import (
     OrderCountView,
     CompletedOrderCountView,
     ReviewListCreateView,
-    ReviewUpdateDestroyView
+    ReviewUpdateDestroyView,
+    BaseInfoView
 )
 
 urlpatterns = [
@@ -33,4 +34,5 @@ urlpatterns = [
     path('completed-order-count/<int:business_user_id>/', CompletedOrderCountView.as_view(), name='completed-order-count'),
     path('reviews/', ReviewListCreateView.as_view(), name='review-list-create'),
     path('reviews/<int:pk>/', ReviewUpdateDestroyView.as_view(), name='review-update-destroy'),
+    path('base-info/', BaseInfoView.as_view(), name='base-info'),
 ]
