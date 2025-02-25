@@ -13,6 +13,8 @@ from .views import (
     OrderUpdateDestroyView,
     OrderCountView,
     CompletedOrderCountView,
+    ReviewListCreateView,
+    ReviewUpdateDestroyView
 )
 
 urlpatterns = [
@@ -29,4 +31,6 @@ urlpatterns = [
     path('orders/<int:pk>/', OrderUpdateDestroyView.as_view(), name='order-update-destroy'),
     path('order-count/<int:business_user_id>/', OrderCountView.as_view(), name='order-count'),
     path('completed-order-count/<int:business_user_id>/', CompletedOrderCountView.as_view(), name='completed-order-count'),
+    path('reviews/', ReviewListCreateView.as_view(), name='review-list-create'),
+    path('reviews/<int:pk>/', ReviewUpdateDestroyView.as_view(), name='review-update-destroy'),
 ]

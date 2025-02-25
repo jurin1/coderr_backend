@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.db.models import Count, Q
 from django.db import transaction
-from .models import Profile, FileUpload, Offer, OfferDetail, CustomUser, Order
+from .models import Profile, FileUpload, Offer, OfferDetail, CustomUser, Order, Review
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
@@ -19,6 +19,7 @@ from .serializers import (
     OrderSerializer,
     OrderCountSerializer,
     CompletedOrderCountSerializer,
+    ReviewSerializer
 )
 
 class UserRegistrationView(APIView):
@@ -251,3 +252,43 @@ class CompletedOrderCountView(generics.RetrieveAPIView):
         completed_order_count = Order.objects.filter(business_user_id=business_user_id, status='completed').count()
         serializer = self.get_serializer({'completed_order_count': completed_order_count})
         return Response(serializer.data)
+    
+class IsReviewerOrReadOnly(permissions.BasePermission):
+    """
+    Benutzerdefinierte Berechtigung, die nur dem Ersteller einer Bewertung erlaubt, sie zu bearbeiten oder zu löschen.
+    """
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        return obj.reviewer == request.user
+
+class ReviewListCreateView(generics.ListCreateAPIView):
+    serializer_class = ReviewSerializer
+    permission_classes = [permissions.IsAuthenticated] 
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['updated_at', 'rating']
+
+    def get_queryset(self):
+        queryset = Review.objects.all()
+        business_user_id = self.request.query_params.get('business_user_id')
+        reviewer_id = self.request.query_params.get('reviewer_id')
+
+        if business_user_id:
+            queryset = queryset.filter(business_user_id=business_user_id)
+        if reviewer_id:
+            queryset = queryset.filter(reviewer_id=reviewer_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(reviewer=self.request.user)
+
+class ReviewUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+    permission_classes = [permissions.IsAuthenticated, IsReviewerOrReadOnly]  
+
+    def perform_update(self, serializer):
+        serializer.save()
+    
+    def perform_destroy(self, instance):
+        instance.delete()

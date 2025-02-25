@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, Profile, Offer, OfferDetail 
+from .models import CustomUser, Profile, Offer, OfferDetail, Review
 from django.utils.html import format_html
 
 @admin.register(Profile)
@@ -40,3 +40,10 @@ class OfferAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description', 'user__username') 
     readonly_fields = ('min_price', 'min_delivery_time', 'created_at', 'updated_at') 
     raw_id_fields = ('user',)
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('reviewer', 'business_user', 'rating', 'created_at')
+    search_fields = ('reviewer__username', 'business_user__username', 'description')
+    list_filter = ('rating', 'created_at')
+    raw_id_fields = ('reviewer', 'business_user')

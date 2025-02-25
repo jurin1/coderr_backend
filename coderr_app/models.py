@@ -102,3 +102,16 @@ class Order(models.Model):
 
     def __str__(self):
         return f"Order {self.id} - {self.title}"
+    
+class Review(models.Model):
+    business_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reviews_received')
+    reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='reviews_given')
+    rating = models.IntegerField(choices=[(i, i) for i in range(1, 6)])  
+    description = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('business_user', 'reviewer')  
+    def __str__(self):
+        return f"Review by {self.reviewer.username} for {self.business_user.username}"

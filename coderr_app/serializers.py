@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from django.contrib.auth.password_validation import validate_password
 from rest_framework.authtoken.models import Token
 from rest_framework import serializers
-from .models import Profile, FileUpload, Offer, OfferDetail, Order
+from .models import Profile, FileUpload, Offer, OfferDetail, Order, CustomUser, Review
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -286,3 +286,30 @@ class OrderCountSerializer(serializers.Serializer):
 
 class CompletedOrderCountSerializer(serializers.Serializer):
     completed_order_count = serializers.IntegerField()
+
+class ReviewSerializer(serializers.ModelSerializer):
+    reviewer = serializers.PrimaryKeyRelatedField(read_only=True, default=serializers.CurrentUserDefault())
+    business_user = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.filter(type='business'))
+    #reviewer_username = serializers.CharField(source='reviewer.username', read_only=True)
+    #business_username = serializers.CharField(source='business_user.username', read_only = True)
+    class Meta:
+        model = Review
+        fields = ['id', 'business_user', 'reviewer', 'rating', 'description', 'created_at', 'updated_at']
+        read_only_fields = ('created_at', 'updated_at', 'reviewer')
+
+    def validate(self, data):
+        if self.context['request'].user.type != 'customer':
+            raise serializers.ValidationError("Only customers can create reviews.")
+
+        if self.instance is None:  
+            business_user = data['business_user']
+            reviewer = self.context['request'].user
+            if Review.objects.filter(business_user=business_user, reviewer=reviewer).exists():
+                raise serializers.ValidationError("You have already submitted a review for this business.")
+        return data
+    
+    def update(self, instance, validated_data):
+        instance.rating = validated_data.get('rating', instance.rating)
+        instance.description = validated_data.get('description', instance.description)
+        instance.save()
+        return instance
