@@ -348,6 +348,24 @@ class ReviewUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ReviewSerializer
     permission_classes = [permissions.IsAuthenticated, IsReviewerOrReadOnly]  
 
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+
+
+        valid_keys = {'rating', 'description'} 
+        request_keys = set(request.data.keys())
+        invalid_keys = request_keys - valid_keys
+
+        if invalid_keys:
+            return Response({"detail": "Bad Request. The request body contains invalid data."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if serializer.is_valid():
+            self.perform_update(serializer)
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     def perform_update(self, serializer):
         serializer.save()
     
