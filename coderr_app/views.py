@@ -245,22 +245,52 @@ class OrderUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        order = super().get_object()
-        if self.request.method == 'PATCH':
-          if self.request.user.type != "business":
-            raise PermissionError("Only business users can update the order status.")
-        if self.request.method == 'DELETE':
-            if not self.request.user.is_staff:
-                raise PermissionError("Only admin users can delete orders.")
+        try:
+            order = super().get_object()
+        except Order.DoesNotExist:
+            return Response({"detail": "The specified order was not found."}, status=status.HTTP_404_NOT_FOUND)
         return order
 
+
     def update(self, request, *args, **kwargs):
-        return super().update(request, *args, **kwargs)
+        order = self.get_object()
+        if isinstance(order, Response):
+            return order
+        
+        if request.user.type != "business" or request.user.id != order.business_user.id:
+            return Response({"detail": "Only the assigned business user can update the status of this order."}, status=status.HTTP_403_FORBIDDEN)
+
+        serializer = self.get_serializer(order, data=request.data, partial=True)
+        if serializer.is_valid():
+            if 'status' in request.data:
+                valid_status_values = ['in_progress', 'completed', 'cancelled'] 
+                if request.data['status'] not in valid_status_values:
+                    return Response({"detail": "Invalid status value."}, status=status.HTTP_400_BAD_REQUEST)
+
+                serializer.save()
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            else:
+                 return Response({"detail": "The 'status' field is missing in the request body."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if isinstance(instance, Response):
+            return instance
+        if not request.user.is_staff:
+            return Response({"detail": "Only admin users are allowed to delete orders."}, status=status.HTTP_403_FORBIDDEN)
+
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_destroy(self, instance):
-        if not self.request.user.is_staff:
-            return Response(status=status.HTTP_403_FORBIDDEN)
         instance.delete()
+
+    def handle_exception(self, exc):
+        if isinstance(exc, Order.DoesNotExist):
+            return Response({"detail": "The specified order was not found."}, status=status.HTTP_404_NOT_FOUND)
+        return super().handle_exception(exc)
 
 
 class OrderCountView(generics.RetrieveAPIView):
