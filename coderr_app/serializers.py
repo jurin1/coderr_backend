@@ -290,8 +290,6 @@ class CompletedOrderCountSerializer(serializers.Serializer):
 class ReviewSerializer(serializers.ModelSerializer):
     reviewer = serializers.PrimaryKeyRelatedField(read_only=True, default=serializers.CurrentUserDefault())
     business_user = serializers.PrimaryKeyRelatedField(queryset=CustomUser.objects.filter(type='business'))
-    #reviewer_username = serializers.CharField(source='reviewer.username', read_only=True)
-    #business_username = serializers.CharField(source='business_user.username', read_only = True)
     class Meta:
         model = Review
         fields = ['id', 'business_user', 'reviewer', 'rating', 'description', 'created_at', 'updated_at']
@@ -313,3 +311,5 @@ class ReviewSerializer(serializers.ModelSerializer):
         instance.description = validated_data.get('description', instance.description)
         instance.save()
         return instance
+    
+

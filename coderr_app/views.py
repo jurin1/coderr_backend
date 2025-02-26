@@ -4,7 +4,7 @@ from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework import generics, permissions, status, parsers, filters, pagination, parsers
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-from django.db.models import Count, Q, Avg
+from django.db.models import Q, Avg, Min
 from django.db import transaction
 from .models import Profile, FileUpload, Offer, OfferDetail, CustomUser, Order, Review
 from .serializers import (
@@ -19,7 +19,7 @@ from .serializers import (
     OrderSerializer,
     OrderCountSerializer,
     CompletedOrderCountSerializer,
-    ReviewSerializer
+    ReviewSerializer,
 )
 
 class UserRegistrationView(APIView):
@@ -104,9 +104,10 @@ class OfferListView(generics.ListCreateAPIView):
     queryset = Offer.objects.all()
     serializer_class = OfferSerializer
     pagination_class = OfferPagination
-    filter_backends = [filters.OrderingFilter, filters.SearchFilter]
+    filter_backends = [filters.SearchFilter]
     ordering_fields = ['updated_at', 'min_price']
     search_fields = ['title', 'description']
+
 
     def get_permissions(self):
         if self.request.method == 'POST':
@@ -115,7 +116,43 @@ class OfferListView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        creator_id = self.request.query_params.get('creator_id')
+        min_price = self.request.query_params.get('min_price')
+        max_delivery_time = self.request.query_params.get('max_delivery_time')
+
+        if creator_id:
+            queryset = queryset.filter(user_id=creator_id)
+        if min_price:
+            queryset = queryset.filter(details__price__gte=min_price)
+
+        if max_delivery_time:
+            queryset = queryset.annotate(
+                min_delivery_time_annotated=Min('details__delivery_time_in_days')
+            ).filter(min_delivery_time_annotated__lte=max_delivery_time)
+
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        ordering = request.query_params.get('ordering')
+        if ordering == 'min_price':
+            queryset = sorted(queryset, key=lambda offer: offer.min_price or float('inf'))  
+        elif ordering == '-min_price':
+            queryset = sorted(queryset, key=lambda offer: offer.min_price or float('-inf'), reverse=True)
+        elif ordering == 'updated_at':
+            queryset = queryset.order_by('updated_at')
+        elif ordering == '-updated_at':
+             queryset = queryset.order_by('-updated_at')
+
+        page = self.paginate_queryset(queryset)  
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -123,9 +160,6 @@ class OfferListView(generics.ListCreateAPIView):
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-
-
-
 class IsOwnerOrReadOnly(BasePermission):
 
     def has_object_permission(self, request, view, obj):

@@ -48,8 +48,7 @@ class Offer(models.Model):
     description = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    #min_price = models.DecimalField(max_digits=10, decimal_places=2)  
-    #min_delivery_time = models.IntegerField() 
+    
     def __str__(self):
         return self.title
     
@@ -60,8 +59,8 @@ class Offer(models.Model):
 
     @property
     def min_delivery_time(self):
-        delivery_times = [detail.delivery_time for detail in self.details.all() if detail.delivery_time is not None]
-        return min(delivery_times) if delivery_times else None 
+        delivery_times = [detail.delivery_time_in_days for detail in self.details.all() if detail.delivery_time_in_days is not None]  # Corrected attribute name
+        return min(delivery_times) if delivery_times else None
 
 class OfferDetail(models.Model):
     OFFER_TYPE_CHOICES = [
