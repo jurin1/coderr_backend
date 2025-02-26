@@ -2,6 +2,7 @@
 ## Project Description
 
 This project is the backend API for Coderr, a service marketplace platform. It's built using Django REST Framework and provides API endpoints for user registration, login, profile management, offer creation, order management, reviews, and more.
+The Backend is a part of the frontend project [coderr](https://github.com/Developer-Akademie-Backendkurs/project.Coderr), which you have to download.
 
 ## Installation
 
