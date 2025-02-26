@@ -18,6 +18,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
@@ -34,6 +51,8 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  
     "http://localhost:5500",  
     "http://127.0.0.1:5500",   
+    "http://127.0.0.1:5501",   
+    "http://127.0.0.1:5502",   
     "http://127.0.0.1:3000"   
 ]
 

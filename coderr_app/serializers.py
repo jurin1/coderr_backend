@@ -134,6 +134,7 @@ class OfferSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(read_only=True, default=serializers.CurrentUserDefault())
     min_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
     min_delivery_time = serializers.IntegerField(read_only=True)
+    image = serializers.ImageField(required=False)
 
     class Meta:
         model = Offer

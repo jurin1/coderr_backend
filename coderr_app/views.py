@@ -107,7 +107,7 @@ class OfferListView(generics.ListCreateAPIView):
     filter_backends = [filters.SearchFilter]
     ordering_fields = ['updated_at', 'min_price']
     search_fields = ['title', 'description']
-
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_permissions(self):
         if self.request.method == 'POST':
@@ -181,12 +181,18 @@ class OfferUpdateView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Offer.objects.all()
     serializer_class = OfferSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def patch(self, request, *args, **kwargs):
         instance = self.get_object()
+        
+        image_data = request.FILES.get('image')
+        if image_data:
+            instance.image = image_data
+            instance.save(update_fields=['image'])
+        
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-
         
         details_data = request.data.get('details')
         if details_data is not None:  
