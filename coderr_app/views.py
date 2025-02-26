@@ -23,9 +23,16 @@ from .serializers import (
 )
 
 class UserRegistrationView(APIView):
+    """
+    View for user registration.
+    """
     permission_classes = [AllowAny]
 
     def post(self, request):
+        """
+        Handles user registration by creating a new user.
+        Returns a token and user details upon successful registration.
+        """
         serializer = UserRegistrationSerializer(data=request.data)
         if serializer.is_valid():
             user_data = serializer.save()
@@ -36,51 +43,76 @@ class UserRegistrationView(APIView):
                 "user_id": user_data['user_id']
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-class UserLoginView(APIView): 
+
+class UserLoginView(APIView):
+    """
+    View for user login.
+    """
     permission_classes = [AllowAny]
 
     def post(self, request):
+        """
+        Handles user login and returns user data upon successful authentication.
+        """
         serializer = UserLoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.validated_data['user']
-            user_data = UserRegistrationSerializer().get_user_data(user) 
+            user_data = UserRegistrationSerializer().get_user_data(user)
             return Response(user_data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-
 
 
 class ProfileDetailView(generics.RetrieveUpdateAPIView):
+    """
+    View to retrieve and update a user profile.
+    """
     serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_object(self):
+        """
+        Retrieves a specific profile based on the user ID in the URL.
+        """
         return get_object_or_404(Profile, user_id=self.kwargs['pk'])
 
 
     def patch(self, request, *args, **kwargs):
+        """
+        Allows updating a profile, but only if the requesting user owns the profile.
+        """
         profile = self.get_object()
         if request.user != profile.user:
             return Response({"detail": "You do not have permission to update this profile."},
                             status=status.HTTP_403_FORBIDDEN)
         return super().patch(request, *args, **kwargs)
-    
+
 class FileUploadView(generics.CreateAPIView):
+    """
+    View for uploading files.
+    """
     queryset = FileUpload.objects.all()
     serializer_class = FileUploadSerializer
     parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
-class BaseProfileListView(generics.ListAPIView): 
+class BaseProfileListView(generics.ListAPIView):
+    """
+    Base view for listing profiles, should be subclassed for specific user types.
+    """
     permission_classes = [permissions.IsAuthenticated]
-    serializer_class = None 
+    serializer_class = None
 
     def get_queryset(self):
+        """
+        Filters profiles based on the user type, which must be defined in subclasses.
+        """
         if self.user_type is None:
             raise NotImplementedError("user_type must be set in subclasses.")
         return Profile.objects.filter(user__type=self.user_type)
 
     def list(self, request, *args, **kwargs):
+        """
+        Lists profiles and returns an empty list if no profiles are found.
+        """
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         if not queryset.exists():
@@ -88,19 +120,31 @@ class BaseProfileListView(generics.ListAPIView):
         return Response(serializer.data)
 
 class BusinessProfileListView(BaseProfileListView):
-    serializer_class = BusinessProfileSerializer 
+    """
+    View to list business profiles.
+    """
+    serializer_class = BusinessProfileSerializer
     user_type = 'business'
 
 class CustomerProfileListView(BaseProfileListView):
-    serializer_class = CustomerProfileSerializer 
+    """
+    View to list customer profiles.
+    """
+    serializer_class = CustomerProfileSerializer
     user_type = 'customer'
 
 class OfferPagination(pagination.PageNumberPagination):
-    page_size = 10  
+    """
+    Pagination class for offers.
+    """
+    page_size = 10
     page_size_query_param = 'page_size'
     max_page_size = 1000
 
 class OfferListView(generics.ListCreateAPIView):
+    """
+    View to list and create offers. Supports filtering, searching, and ordering.
+    """
     queryset = Offer.objects.all()
     serializer_class = OfferSerializer
     pagination_class = OfferPagination
@@ -110,11 +154,17 @@ class OfferListView(generics.ListCreateAPIView):
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def get_permissions(self):
+        """
+        Determines permissions based on the request method (POST requires authentication).
+        """
         if self.request.method == 'POST':
             return [IsAuthenticated()]
         return [AllowAny()]
 
     def get_queryset(self):
+        """
+        Filters offers based on query parameters like creator_id, min_price, and max_delivery_time.
+        """
         queryset = super().get_queryset()
         creator_id = self.request.query_params.get('creator_id')
         min_price = self.request.query_params.get('min_price')
@@ -133,11 +183,15 @@ class OfferListView(generics.ListCreateAPIView):
         return queryset
 
     def list(self, request, *args, **kwargs):
+        """
+        Lists offers with support for custom ordering by 'min_price' and 'updated_at'.
+        Handles pagination and returns paginated results.
+        """
         queryset = self.filter_queryset(self.get_queryset())
 
         ordering = request.query_params.get('ordering')
         if ordering == 'min_price':
-            queryset = sorted(queryset, key=lambda offer: offer.min_price or float('inf'))  
+            queryset = sorted(queryset, key=lambda offer: offer.min_price or float('inf'))
         elif ordering == '-min_price':
             queryset = sorted(queryset, key=lambda offer: offer.min_price or float('-inf'), reverse=True)
         elif ordering == 'updated_at':
@@ -145,7 +199,7 @@ class OfferListView(generics.ListCreateAPIView):
         elif ordering == '-updated_at':
              queryset = queryset.order_by('-updated_at')
 
-        page = self.paginate_queryset(queryset)  
+        page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
@@ -155,102 +209,148 @@ class OfferListView(generics.ListCreateAPIView):
 
 
     def create(self, request, *args, **kwargs):
+        """
+        Creates a new offer.
+        """
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 class IsOwnerOrReadOnly(BasePermission):
-
+    """
+    Custom permission to only allow owners of an object to edit it.
+    """
     def has_object_permission(self, request, view, obj):
+        """
+        Checks if the requesting user is the owner of the object.
+        """
         if request.method in permissions.SAFE_METHODS:
             return True
-        
+
         return obj.user == request.user
 class OfferDetailView(generics.RetrieveAPIView):
+    """
+    View to retrieve offer details.
+    """
     queryset = OfferDetail.objects.all()
     serializer_class = OfferDetailSerializer
-    permission_classes = [AllowAny]  
+    permission_classes = [AllowAny]
 
 class OfferDetailDeleteView(generics.RetrieveDestroyAPIView):
+    """
+    View to retrieve and delete offer details.
+    """
     queryset = OfferDetail.objects.all()
     serializer_class = OfferDetailSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
 
-class OfferUpdateView(generics.RetrieveUpdateDestroyAPIView): 
+class OfferUpdateView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    View to retrieve, update, and delete offers.
+    """
     queryset = Offer.objects.all()
     serializer_class = OfferSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
     parser_classes = [parsers.MultiPartParser, parsers.FormParser, parsers.JSONParser]
 
     def patch(self, request, *args, **kwargs):
+        """
+        Updates an existing offer, including offer details and image.
+        Handles partial updates and image replacement.
+        """
         instance = self.get_object()
-        
+
         image_data = request.FILES.get('image')
         if image_data:
             instance.image = image_data
             instance.save(update_fields=['image'])
-        
+
         serializer = self.get_serializer(instance, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
-        
+
         details_data = request.data.get('details')
-        if details_data is not None:  
+        if details_data is not None:
             self.update_details(instance, details_data)
 
         self.perform_update(serializer)
         return Response(serializer.data)
 
     def update_details(self, offer, details_data):
+        """
+        Updates offer details, adding new ones, updating existing ones, and deleting removed ones.
+        Uses atomic transactions to ensure data consistency.
+        """
         existing_details = {detail.id: detail for detail in offer.details.all()}
         updated_detail_ids = []
 
-        with transaction.atomic():  
+        with transaction.atomic():
             for detail_data in details_data:
                 detail_id = detail_data.get('id')
 
-                if detail_id:  
+                if detail_id:
                     detail = existing_details.get(detail_id)
                     if detail:
                         serializer = OfferDetailSerializer(detail, data=detail_data, partial=True)
                         serializer.is_valid(raise_exception=True)
                         serializer.save()
                         updated_detail_ids.append(detail_id)
-                    
 
-                else:  
+
+                else:
                     serializer = OfferDetailSerializer(data=detail_data)
                     serializer.is_valid(raise_exception=True)
-                    serializer.save(offer=offer)  
+                    serializer.save(offer=offer)
 
-            
+
             for detail_id, detail in existing_details.items():
                 if detail_id not in updated_detail_ids:
                     detail.delete()
 
     def perform_update(self, serializer):
+        """
+        Saves the updated serializer data.
+        """
         serializer.save()
 
     def delete(self, request, *args, **kwargs):
+        """
+        Deletes an offer.
+        """
         return self.destroy(request, *args, **kwargs)
-    
+
 class OrderListCreateView(generics.ListCreateAPIView):
+    """
+    View to list and create orders.
+    """
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        """
+        Retrieves orders related to the current user, either as a customer or business user.
+        """
         user = self.request.user
         return Order.objects.filter(Q(customer_user=user) | Q(business_user=user))
 
     def create(self, request, *args, **kwargs):
+        """
+        Creates a new order.
+        """
         return super().create(request, *args, **kwargs)
 
 class OrderUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    View to retrieve, update, and delete orders.
+    """
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
+        """
+        Retrieves a specific order, handling DoesNotExist exceptions.
+        """
         try:
             order = super().get_object()
         except Order.DoesNotExist:
@@ -259,17 +359,21 @@ class OrderUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 
 
     def update(self, request, *args, **kwargs):
+        """
+        Updates an order's status, only allowed for the assigned business user.
+        Validates status values and handles missing status field.
+        """
         order = self.get_object()
         if isinstance(order, Response):
             return order
-        
+
         if request.user.type != "business" or request.user.id != order.business_user.id:
             return Response({"detail": "Only the assigned business user can update the status of this order."}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(order, data=request.data, partial=True)
         if serializer.is_valid():
             if 'status' in request.data:
-                valid_status_values = ['in_progress', 'completed', 'cancelled'] 
+                valid_status_values = ['in_progress', 'completed', 'cancelled']
                 if request.data['status'] not in valid_status_values:
                     return Response({"detail": "Invalid status value."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -281,6 +385,9 @@ class OrderUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 
 
     def destroy(self, request, *args, **kwargs):
+        """
+        Deletes an order, only allowed for admin users.
+        """
         instance = self.get_object()
         if isinstance(instance, Response):
             return instance
@@ -291,20 +398,32 @@ class OrderUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def perform_destroy(self, instance):
+        """
+        Deletes the order instance.
+        """
         instance.delete()
 
     def handle_exception(self, exc):
+        """
+        Handles exceptions, specifically Order.DoesNotExist.
+        """
         if isinstance(exc, Order.DoesNotExist):
             return Response({"detail": "The specified order was not found."}, status=status.HTTP_404_NOT_FOUND)
         return super().handle_exception(exc)
 
 
 class OrderCountView(generics.RetrieveAPIView):
+    """
+    View to retrieve the count of in-progress orders for a business user.
+    """
     serializer_class = OrderCountSerializer
-    permission_classes = [AllowAny] 
+    permission_classes = [AllowAny]
     def get(self, request, *args, **kwargs):
+        """
+        Retrieves and returns the count of in-progress orders for a given business user ID.
+        """
         business_user_id = self.kwargs['business_user_id']
-        get_object_or_404(CustomUser, id=business_user_id, type='business')  
+        get_object_or_404(CustomUser, id=business_user_id, type='business')
 
         order_count = Order.objects.filter(business_user_id=business_user_id, status='in_progress').count()
         serializer = self.get_serializer({'order_count': order_count})
@@ -312,30 +431,48 @@ class OrderCountView(generics.RetrieveAPIView):
 
 
 class CompletedOrderCountView(generics.RetrieveAPIView):
+    """
+    View to retrieve the count of completed orders for a business user.
+    """
     serializer_class = CompletedOrderCountSerializer
-    permission_classes = [AllowAny] 
+    permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
+        """
+        Retrieves and returns the count of completed orders for a given business user ID.
+        """
         business_user_id = self.kwargs['business_user_id']
-        get_object_or_404(CustomUser, id=business_user_id, type='business') 
+        get_object_or_404(CustomUser, id=business_user_id, type='business')
 
         completed_order_count = Order.objects.filter(business_user_id=business_user_id, status='completed').count()
         serializer = self.get_serializer({'completed_order_count': completed_order_count})
         return Response(serializer.data)
-    
+
 class IsReviewerOrReadOnly(permissions.BasePermission):
+    """
+    Custom permission to only allow reviewers of a review to edit it.
+    """
     def has_object_permission(self, request, view, obj):
+        """
+        Checks if the requesting user is the reviewer of the review object.
+        """
         if request.method in permissions.SAFE_METHODS:
             return True
         return obj.reviewer == request.user
 
 class ReviewListCreateView(generics.ListCreateAPIView):
+    """
+    View to list and create reviews. Supports filtering and ordering.
+    """
     serializer_class = ReviewSerializer
-    permission_classes = [permissions.IsAuthenticated] 
+    permission_classes = [permissions.IsAuthenticated]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['updated_at', 'rating']
 
     def get_queryset(self):
+        """
+        Filters reviews based on query parameters like business_user_id and reviewer_id.
+        """
         queryset = Review.objects.all()
         business_user_id = self.request.query_params.get('business_user_id')
         reviewer_id = self.request.query_params.get('reviewer_id')
@@ -347,20 +484,29 @@ class ReviewListCreateView(generics.ListCreateAPIView):
         return queryset
 
     def perform_create(self, serializer):
+        """
+        Saves a new review, automatically setting the reviewer to the current user.
+        """
         serializer.save(reviewer=self.request.user)
 
 class ReviewUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    """
+    View to retrieve, update, and delete reviews.
+    """
     queryset = Review.objects.all()
     serializer_class = ReviewSerializer
-    permission_classes = [permissions.IsAuthenticated, IsReviewerOrReadOnly]  
+    permission_classes = [permissions.IsAuthenticated, IsReviewerOrReadOnly]
 
     def update(self, request, *args, **kwargs):
+        """
+        Updates an existing review, validating the request data and handling invalid keys.
+        """
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
 
 
-        valid_keys = {'rating', 'description'} 
+        valid_keys = {'rating', 'description'}
         request_keys = set(request.data.keys())
         invalid_keys = request_keys - valid_keys
 
@@ -373,15 +519,28 @@ class ReviewUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def perform_update(self, serializer):
+        """
+        Saves the updated review data.
+        """
         serializer.save()
-    
+
     def perform_destroy(self, instance):
+        """
+        Deletes a review instance.
+        """
         instance.delete()
 
 class BaseInfoView(APIView):
+    """
+    View to retrieve base information like review counts, average rating, etc.
+    """
     permission_classes = [AllowAny]
 
     def get(self, request, *args, **kwargs):
+        """
+        Retrieves and returns base information about the application, including review count, average rating,
+        business profile count, and offer count.
+        """
         review_count = Review.objects.count()
         average_rating = Review.objects.aggregate(Avg('rating'))['rating__avg']
         business_profile_count = CustomUser.objects.filter(type='business').count()
@@ -390,7 +549,7 @@ class BaseInfoView(APIView):
         if average_rating is not None:
             average_rating = round(average_rating, 1)
         else:
-            average_rating = 0  
+            average_rating = 0
 
         data = {
             'review_count': review_count,
