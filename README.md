@@ -12,7 +12,7 @@ Follow these steps to set up and run the `coderr_backend` project locally:
 
     ```bash
     git clone https://github.com/jurin1/coderr_backend
-    cd jurin1-coderr_backend
+    cd coderr_backend
     ```
     
 2.  **Create a virtual environment (Recommended):**
