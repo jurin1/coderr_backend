@@ -58,7 +58,7 @@ class UserLoginView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             user_data = UserRegistrationSerializer().get_user_data(user)
-            return Response(user_data, status=status.HTTP_201_CREATED)
+            return Response(user_data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
