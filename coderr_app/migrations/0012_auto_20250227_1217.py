@@ -5,34 +5,36 @@ def create_dummy_users(apps, schema_editor):
     CustomUser = apps.get_model('coderr_app', 'CustomUser')
     Profile = apps.get_model('coderr_app', 'Profile')
 
-    user1 = CustomUser.objects.create_user(
-        username='andrey',
-        email='andrey@example.com',
-        password='asdasd', 
-        type='customer'
+    if not CustomUser.objects.filter(username='business_user1').exists():
+        user1 = CustomUser.objects.create_user(
+            username='andrey',
+            email='andrey@example.com',
+            password='asdasd', 
+            type='customer'
     )
-    Profile.objects.create(
-        user=user1,
-        first_name='Andrey',
-        last_name='Customer',
-        location='Musterstadt',
-        description='Ein Testkunde'
-    )
+        Profile.objects.create(
+            user=user1,
+            first_name='Andrey',
+            last_name='Customer',
+            location='Musterstadt',
+            description='Ein Testkunde'
+        )
 
-    user2 = CustomUser.objects.create_user(
-        username='kevin',
-        email='kevin@example.com',
-        password='asdasd24', 
-        type='business'
-    )
-    Profile.objects.create(
-        user=user2,
-        first_name='Kevin',
-        last_name='Business',
-        location='Musterstadt',
-        description='Ein Test Business User',
-        working_hours='Mo-Fr 9-17 Uhr'
-    )
+    if not CustomUser.objects.filter(username='customer_user1').exists():
+        user2 = CustomUser.objects.create_user(
+            username='kevin',
+            email='kevin@example.com',
+            password='asdasd24', 
+            type='business'
+        )
+        Profile.objects.create(
+            user=user2,
+            first_name='Kevin',
+            last_name='Business',
+            location='Musterstadt',
+            description='Ein Test Business User',
+            working_hours='Mo-Fr 9-17 Uhr'
+        )
 
 
 def delete_dummy_users(apps, schema_editor):
