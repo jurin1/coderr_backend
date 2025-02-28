@@ -180,6 +180,15 @@ class OfferDetailSerializer(serializers.ModelSerializer):
         if not isinstance(value, int) or value <= 0:
             raise serializers.ValidationError("Delivery time (in days) must be a positive integer.")
         return value
+    
+    def to_representation(self, instance):
+        """
+        Customizes the serialization to return price as an integer (int).
+        """
+        representation = super().to_representation(instance)
+        if representation.get('price') is not None:
+            representation['price'] = int(float(representation['price'])) 
+        return representation
 
 class OfferSerializer(serializers.ModelSerializer):
     """
@@ -290,6 +299,15 @@ class OfferSerializer(serializers.ModelSerializer):
             for detail_id, detail in existing_details.items():
                 if detail_id not in updated_detail_ids:
                     detail.delete()
+    
+    def to_representation(self, instance):
+        """
+        Customizes the serialization to return min_price as a number (float).
+        """
+        representation = super().to_representation(instance)
+        if representation.get('min_price') is not None: 
+            representation['min_price'] = int(float(representation['min_price'])) 
+        return representation
 
 class OrderSerializer(serializers.ModelSerializer):
     """
