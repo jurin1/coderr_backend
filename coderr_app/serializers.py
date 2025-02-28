@@ -364,7 +364,7 @@ class OrderSerializer(serializers.ModelSerializer):
             customer_user=self.context['request'].user,
             business_user=offer.user,
             offer_detail=offer_detail,
-            title=offer_detail.title,
+            title=offer.title,
             revisions=offer_detail.revisions,
             delivery_time_in_days=offer_detail.delivery_time_in_days,
             price=offer_detail.price,
