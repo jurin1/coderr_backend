@@ -3,9 +3,20 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from ...models import Offer, OfferDetail, Profile
 
+class OfferDetailBriefSerializer(serializers.ModelSerializer):
+    """
+    A concise serializer for OfferDetail, only showing id and url.
+    """
+    url = serializers.HyperlinkedIdentityField(view_name='offerdetail-detail', read_only=True)
+
+    class Meta:
+        model = OfferDetail
+        fields = ['id', 'url']
+
+
 class OfferDetailSerializer(serializers.ModelSerializer):
     """
-    Serializer for offer details.
+    Serializer for offer details.  (Full details, used for creation/updates)
     Represents specific details within an offer, like price, revisions, delivery time.
     """
     id = serializers.IntegerField(required=False)
@@ -33,12 +44,14 @@ class OfferDetailSerializer(serializers.ModelSerializer):
             representation['price'] = int(float(representation['price']))
         return representation
 
+
 class OfferSerializer(serializers.ModelSerializer):
     """
     Serializer for offers.
     Handles creation, update, and retrieval of offers, including nested offer details.
     """
-    details = OfferDetailSerializer(many=True)
+    details = OfferDetailBriefSerializer(many=True, read_only=True)  # Use the concise serializer, and make it read_only
+    details_data = OfferDetailSerializer(many=True, write_only=True, source='details') # For write operations, but don't include in output
     user_details = serializers.SerializerMethodField()
     user = serializers.PrimaryKeyRelatedField(read_only=True, default=serializers.CurrentUserDefault())
     min_price = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
@@ -47,7 +60,7 @@ class OfferSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Offer
-        fields = ['id', 'user', 'title', 'image', 'description', 'created_at', 'updated_at', 'details', 'min_price', 'min_delivery_time', 'user_details']
+        fields = ['id', 'user', 'title', 'image', 'description', 'created_at', 'updated_at', 'details', 'details_data', 'min_price', 'min_delivery_time', 'user_details']
         read_only_fields = ('created_at', 'updated_at', 'user')
 
     def get_user_details(self, obj):
@@ -67,7 +80,7 @@ class OfferSerializer(serializers.ModelSerializer):
         Creates a new offer.
         Handles creation of an offer and its associated offer details.
         """
-        details_data = validated_data.pop('details')
+        details_data = validated_data.pop('details')  # Use the correct source
         offer = Offer.objects.create(user=self.context['request'].user, **validated_data)
         for detail_data in details_data:
             if 'delivery_time_in_days' not in detail_data or detail_data['delivery_time_in_days'] is None:
@@ -102,7 +115,7 @@ class OfferSerializer(serializers.ModelSerializer):
         Updates an existing offer.
         Handles updates to the offer and its associated offer details.
         """
-        details_data = validated_data.pop('details', None)
+        details_data = validated_data.pop('details', None) # Use the correct source
 
         instance.title = validated_data.get('title', instance.title)
         instance.image = validated_data.get('image', instance.image)
